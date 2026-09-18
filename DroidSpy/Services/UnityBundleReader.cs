@@ -18,6 +18,7 @@ namespace DroidSpy.Services;
 /// 支持的容器：
 ///   UnityFS                  —— Unity 5.3 以后的标准格式
 ///   UnityWeb / UnityRaw      —— 更老的格式，version 6 时内部结构与 UnityFS 相同
+///   BuildPlayer-*            —— 打包玩家资源时用的变体，内部结构与 UnityFS 相同
 ///
 /// 支持的压缩：不压缩 / LZ4 / LZ4HC / LZMA。
 ///
@@ -27,6 +28,9 @@ public static class UnityBundleReader
 {
     /// <summary>认得出的容器签名。</summary>
     private static readonly string[] KnownSignatures = { "UnityFS", "UnityWeb", "UnityRaw" };
+
+    /// <summary>BuildPlayer 容器签名前缀，后面跟平台名。</summary>
+    private const string BuildPlayerPrefix = "BuildPlayer-";
 
     /// <summary>判定一个 PE 需要读到多少字节（PE 头 + 可选头 + 数据目录）。</summary>
     private const int ProbeHeadBytes = 4096;
@@ -55,7 +59,15 @@ public static class UnityBundleReader
     private static string? ReadSignature(Stream s)
     {
         string sig = ReadCString(s);
-        return Array.IndexOf(KnownSignatures, sig) >= 0 ? sig : null;
+        return LineUp(sig);
+    }
+
+    /// <summary>规范化签名：认得出就返回原样，否则返回 null。</summary>
+    private static string? LineUp(string sig)
+    {
+        if (Array.IndexOf(KnownSignatures, sig) >= 0) return sig;
+        if (sig.StartsWith(BuildPlayerPrefix, StringComparison.Ordinal)) return sig;
+        return null;
     }
 
     /// <summary>
@@ -74,13 +86,17 @@ public static class UnityBundleReader
 
         // ---------- 1. 解析容器头 ----------
         string signature = ReadCString(fs);
-        if (Array.IndexOf(KnownSignatures, signature) < 0)
+        string? kind = LineUp(signature);
+        if (kind == null)
             throw new InvalidDataException("这不是 Unity 资源包。");
 
         uint version = ReadU32Be(fs);
 
-        // UnityWeb / UnityRaw 从第 6 版起，内部结构与 UnityFS 完全一致
-        bool useFsLayout = signature == "UnityFS" || (signature != "UnityFS" && version >= 6);
+        // UnityWeb / UnityRaw 从第 6 版起，内部结构与 UnityFS 完全一致；
+        // BuildPlayer-* 不论版本都跟 UnityFS 走同一套布局
+        bool useFsLayout = signature == "UnityFS"
+            || signature.StartsWith(BuildPlayerPrefix, StringComparison.Ordinal)
+            || version >= 6;
 
         string unityVersion = "";
         long headerEnd;

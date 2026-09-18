@@ -29,6 +29,18 @@
     <TrimMode>partial</TrimMode>
   </PropertyGroup>
 
+  <!--
+    正式签名。keystore 不放进仓库：本机开发时从环境变量读，
+    没有就退回 Android SDK 自带的调试签名（CI 里用仓库 Secrets 注入）。
+  -->
+  <PropertyGroup Condition="'$(Configuration)' == 'Release' And '$(DROIDSPY_KEYSTORE)' != ''">
+    <AndroidKeyStore>true</AndroidKeyStore>
+    <AndroidSigningKeyStore>$(DROIDSPY_KEYSTORE)</AndroidSigningKeyStore>
+    <AndroidSigningStorePass>$(DROIDSPY_STOREPASS)</AndroidSigningStorePass>
+    <AndroidSigningKeyAlias>$(DROIDSPY_KEYALIAS)</AndroidSigningKeyAlias>
+    <AndroidSigningKeyPass>$(DROIDSPY_KEYPASS)</AndroidSigningKeyPass>
+  </PropertyGroup>
+
   <ItemGroup>
     <PackageReference Include="ICSharpCode.Decompiler" Version="9.1.0.7988" />
     <PackageReference Include="K4os.Compression.LZ4" Version="1.3.8" />

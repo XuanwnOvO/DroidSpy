@@ -160,12 +160,12 @@ public static class AssemblyStore
         try
         {
             using var fs = File.OpenRead(path);
-            var head = new byte[16];
+            var head = new byte[24];
             if (fs.Read(head, 0, head.Length) < 4) return FileKind.Unknown;
 
             // Unity 资源包，解开之后里面通常就是 Assembly-CSharp.dll
             if (Matches(head, "UnityFS", 0) || Matches(head, "UnityWeb", 0)
-                || Matches(head, "UnityRaw", 0))
+                || Matches(head, "UnityRaw", 0) || Matches(head, "BuildPlayer-", 0))
                 return FileKind.UnityBundle;
 
             // IL2CPP 的 global-metadata.dat 魔数 0xFAB11BAF（小端存放）
@@ -183,13 +183,20 @@ public static class AssemblyStore
         }
     }
 
-    /// <summary>比较文件头里从 <paramref name="offset"/> 开始的签名，末尾必须跟 0。</summary>
+    /// <summary>
+    /// 比较文件头里从 <paramref name="offset"/> 开始的签名。
+    /// <paramref name="signature"/> 以 '-' 结尾时按前缀匹配（BuildPlayer-* 后面跟平台名）。
+    /// </summary>
     private static bool Matches(byte[] head, string signature, int offset)
     {
+        bool prefix = signature.EndsWith("-", StringComparison.Ordinal);
         if (offset + signature.Length + 1 > head.Length) return false;
+
         for (int i = 0; i < signature.Length; i++)
             if (head[offset + i] != (byte)signature[i]) return false;
-        return head[offset + signature.Length] == 0;
+
+        // 前缀签名后面必须还有平台名，不能是 '-\0' 直接结束
+        return prefix || head[offset + signature.Length] == 0;
     }
 
     /// <summary>PE 可选头的数据目录第 15 项（CLI Header）非空即为托管程序集。</summary>
