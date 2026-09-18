@@ -398,7 +398,7 @@ public sealed class DecompilerService : IDisposable
     }
 
     /// <summary>
-    /// 编译器生成的名字里有 &lt;&gt; 之类的字符（如 &lt;&gt;f__AnonymousType0）。
+    /// 编译器生成的名字里有尖括号之类的字符（如匿名类型）。
     /// Android 本身允许，但导出到电脑上就会炸，所以按最严的 Windows 规则过滤。
     /// </summary>
     private static readonly char[] InvalidNameChars = { '<', '>', ':', '"', '/', '\\', '|', '?', '*' };

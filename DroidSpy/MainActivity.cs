@@ -30,6 +30,7 @@ namespace DroidSpy;
 public class MainActivity : AppCompatActivity
 {
     private const int RequestOpen = 1001;
+    private const int RequestOpenFolder = 1002;
 
     private const string AuthorQq = "790399726";
     private const string LoverQq = "3193583971";
@@ -89,6 +90,8 @@ public class MainActivity : AppCompatActivity
 
         var btnOpen = FindViewById<MaterialButton>(Resource.Id.btnOpen)!;
         btnOpen.Click += (_, _) => PickFile();
+
+        FindViewById<MaterialButton>(Resource.Id.btnOpenFolder)!.Click += (_, _) => PickFolder();
 
         _txtNoRecent = FindViewById<TextView>(Resource.Id.txtNoRecent)!;
 
@@ -461,9 +464,38 @@ public class MainActivity : AppCompatActivity
         }
     }
 
+    /// <summary>
+    /// 选一个文件夹，把里面的程序集整批反编译掉。
+    ///
+    /// 只向 BatchActivity 传目录 URI，扫描和反编译都在那边做 ——
+    /// 扫描一个游戏目录可能要读上千个文件头，不适合在首页这条路径上跑。
+    /// </summary>
+    private void PickFolder()
+    {
+        var intent = new Intent(Intent.ActionOpenDocumentTree);
+        intent.PutExtra("android:grantWrite", true);
+
+        try
+        {
+            StartActivityForResult(intent, RequestOpenFolder);
+        }
+        catch (Exception ex)
+        {
+            Toast.MakeText(this, ex.Message, ToastLength.Long)?.Show();
+        }
+    }
+
     protected override void OnActivityResult(int requestCode, Result resultCode, Intent? data)
     {
         base.OnActivityResult(requestCode, resultCode, data);
+
+        if (requestCode == RequestOpenFolder)
+        {
+            if (resultCode != Result.Ok || data?.Data == null) return;
+            StartActivity(new Intent(this, typeof(BatchActivity))
+                .PutExtra(BatchActivity.ExtraSourceTree, data.Data.ToString()));
+            return;
+        }
 
         if (requestCode != RequestOpen || resultCode != Result.Ok || data?.Data == null) return;
 

@@ -4,6 +4,8 @@
 
   <string name="home_subtitle">选择要反编译的 .NET 程序集</string>
   <string name="open_file">打开 DLL</string>
+  <string name="open_folder">反编译一整个文件夹</string>
+  <string name="open_folder_hint">DLL 只要放在子目录里也能一并找到</string>
   <string name="recent_files">最近打开</string>
   <string name="no_recent">还没有打开过文件</string>
 
@@ -64,6 +66,21 @@
   <string name="cancel">取消</string>
   <string name="cancelled">已取消</string>
 
+  <!-- 批量反编译整个文件夹 -->
+  <string name="batch_title">批量反编译</string>
+  <string name="batch_scanning">正在扫描文件夹…</string>
+  <string name="batch_hint">把所选文件夹里所有 .NET 程序集逐个反编译成 C# 源码，目录结构与 dnSpy 的「导出到项目」一致，每个 DLL 单独放一个子目录。请选择用来存放的文件夹。\n\n反编译会边做边写，点取消可以随时中止。</string>
+  <string name="batch_none">这个文件夹里没有找到 .NET 程序集</string>
+  <string name="batch_none_detail">扫了 %1$d 个文件，其中 %2$d 个 .dll / .exe，没有一个是含托管元数据的程序集。\n\n如果是 Unity 游戏，先确认它用的是 Mono 后端（Managed 文件夹里有 Assembly-CSharp.dll），IL2CPP 后端没有托管代码可反编译。</string>
+  <string name="batch_progress">正在反编译 %1$s\n共 %2$d 个程序集，已完成 %3$d 个\n本程序集已写出 %4$d / %5$d 个文件</string>
+  <string name="batch_start">开始反编译（%1$d 个程序集）</string>
+  <string name="batch_found">找到 %1$d 个可反编译的程序集，确认后选一个文件夹存放源码</string>
+  <string name="batch_done_hint">这批已经处理完了。重新选一个文件夹可以再跑一批。</string>
+  <string name="batch_skipped">跳过 %1$d 个：%2$s</string>
+  <string name="batch_done">已反编译 %1$d 个程序集，共 %2$d 个文件</string>
+  <string name="batch_done_stopped">已中止，反编译 %1$d 个程序集，共 %2$d 个文件</string>
+  <string name="batch_failed">一个都没成功。第一个失败的是 %1$s：\n%2$s</string>
+
   <!-- 自动换行 -->
   <string name="word_wrap_on">换行：开</string>
   <string name="word_wrap_off">换行：关</string>
@@ -101,7 +118,7 @@
   <string name="about_slogan">在手机上读懂 .NET</string>
   <string name="about_desc">一个纯安卓端的 .NET 反编译工具。基于 ICSharpCode.Decompiler（dnSpy / ILSpy 同款引擎），可以直接在手机上打开并反编译 .NET 程序集和 Unity 资源包，全程不需要电脑。</string>
   <string name="about_features_title">能做什么</string>
-  <string name="about_features">• 打开 .dll / .exe 程序集\n• 自动解包 UnityFS 资源包（LZ4 / LZ4HC）\n• 浏览类型、方法、字段、属性\n• C# 源码查看，语法高亮 + 行号\n• 全局搜索类型与成员\n• 查看方法 IL\n• 导出整个程序集的 C# 源码\n• 本地 MCP 服务，让 AI 直接读源码</string>
+  <string name="about_features">• 打开 .dll / .exe 程序集\n• 自动解包 UnityFS 资源包（LZ4 / LZ4HC）\n• 浏览类型、方法、字段、属性\n• C# 源码查看，语法高亮 + 行号\n• 全局搜索类型与成员\n• 查看方法 IL\n• 导出整个程序集的 C# 源码\n• 批量反编译一整个文件夹里的所有 DLL\n• 本地 MCP 服务，让 AI 直接读源码</string>
   <string name="about_credits_title">关于作者</string>
   <string name="about_author">超绝小学生233</string>
   <string name="about_author_role">作者</string>

@@ -84,12 +84,38 @@ public static class UnityBundleReader
     }
 
     /// <summary>
-    /// 从资源包中提取全部内嵌的托管程序集，落到 <paramref name="outputDir"/> 下。
-    /// 失败时抛 <see cref="InvalidDataException"/>，消息可直接展示给用户。
+    /// 把一个裸程序集包装成解包结果。文件不复制、不移动，路径原样带出去。
+    /// </summary>
+    private static BundleExtract BareAssembly(string path)
+    {
+        long length = 0;
+        try { length = new FileInfo(path).Length; }
+        catch { /* 拿不到大小不影响使用，描述里显示 0 而已 */ }
+
+        return new BundleExtract(
+            Signature: "",
+            Version: 0,
+            UnityVersion: "",
+            NodePaths: new List<string>(),
+            Assemblies: new List<ExtractedAssembly>
+            {
+                new(path, 0, length) { IsBundle = false },
+            });
+    }
+
+    /// <summary>
+    /// 从 Unity 资源包里提取全部内嵌的托管程序集，落到 <paramref name="outputDir"/> 下。
+    ///
+    /// 如果这个文件其实不是资源包、本身就是个 .NET 程序集（批量处理一整个目录时
+    /// 很常见：目录里既有资源包又有裸 dll），会原样把它作为一个结果返回，
+    /// 不再抛异常 —— 调用方拿到的路径可以直接送去反编译。
     /// </summary>
     /// <returns>提取结果，含每个程序集的路径和整个包的描述。</returns>
     public static BundleExtract ExtractAll(string bundlePath, string outputDir)
     {
+        if (AssemblyStore.SniffKind(bundlePath) == AssemblyStore.FileKind.ManagedAssembly)
+            return BareAssembly(bundlePath);
+
         using var fs = File.OpenRead(bundlePath);
 
         // ---------- 1. 解析容器头 ----------
@@ -322,6 +348,12 @@ public static class UnityBundleReader
     public sealed record ExtractedAssembly(string Path, long Offset, long Length)
     {
         public string FileName => System.IO.Path.GetFileName(Path);
+
+        /// <summary>
+        /// 来源：是从资源包的数据流里提出来的，还是干脆就是包文件本身。
+        /// 后一种情况出现在「这个文件其实是个没压缩过的裸程序集」时。
+        /// </summary>
+        public bool IsBundle { get; init; }
     }
 
     /// <summary>一次解包的完整结果。</summary>
@@ -364,6 +396,10 @@ public static class UnityBundleReader
             string extra = Assemblies.Count > 1
                 ? $"\n还解出 {Assemblies.Count - 1} 个附带程序集"
                 : "";
+
+            // 裸程序集是直接拿来当结果的，没有容器信息可说
+            if (Assemblies.Count == 1 && !Assemblies[0].IsBundle)
+                return $"不是资源包，本身就是一个 .NET 程序集（{Assemblies[0].FileName}）。";
 
             return $"{Signature} v{Version}{unity}\n" +
                    $"节点 {node}\n" +

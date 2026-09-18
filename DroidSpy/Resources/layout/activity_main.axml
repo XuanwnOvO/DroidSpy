@@ -51,6 +51,28 @@
             app:icon="@drawable/ic_file"
             app:iconGravity="textStart"
             app:iconSize="26dp" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnOpenFolder"
+            style="?attr/materialButtonOutlinedStyle"
+            android:layout_width="match_parent"
+            android:layout_height="72dp"
+            android:layout_marginTop="12dp"
+            android:text="@string/open_folder"
+            android:textSize="17sp"
+            app:cornerRadius="18dp"
+            app:icon="@drawable/ic_folder"
+            app:iconGravity="textStart"
+            app:iconSize="26dp" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:gravity="center"
+            android:text="@string/open_folder_hint"
+            android:textAppearance="?attr/textAppearanceBodySmall"
+            android:textColor="?attr/colorOnSurfaceVariant" />
       </LinearLayout>
 
       <TextView

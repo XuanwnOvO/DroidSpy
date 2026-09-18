@@ -526,6 +526,16 @@ public class CodeActivity : AppCompatActivity
         StartActivityForResult(intent, RequestExport);
     }
 
+    /// <summary>
+    /// 建 .cs 文件时用的 MIME 类型。
+    ///
+    /// 不能用 "text/plain"：Android 内置的 Downloads / DocumentsUI 这类
+    /// DocumentsProvider 会拿 MIME 去查它自己的扩展名表，text/plain 对应的
+    /// 是 .txt，于是最终落盘的名字就变成 AAAFBKBHAKM.cs.txt。换成 .cs 这个
+    /// 确切类型，它查不到对应扩展名，就老老实实用我们给的名字。
+    /// </summary>
+    private const string CSharpMime = "text/x-csharp";
+
     /// <summary>请求一个目录，之后把整个程序集的 C# 按类型写进去。</summary>
     private void ExportAllSources()
     {
@@ -576,80 +586,6 @@ public class CodeActivity : AppCompatActivity
         return null;
     }
 
-    /// <summary>把相对路径里的目录逐级在 SAF 树上建出来（父目录先建）。</summary>
-    private Android.Net.Uri EnsureTreeDir(Android.Net.Uri rootDoc,
-        Dictionary<string, Android.Net.Uri> cache, string relDir)
-    {
-        if (relDir.Length == 0) return rootDoc;
-        if (cache.TryGetValue(relDir, out var cached)) return cached;
-
-        var parentRel = System.IO.Path.GetDirectoryName(relDir) ?? string.Empty;
-        var parent = EnsureTreeDir(rootDoc, cache, parentRel);
-
-        var name = System.IO.Path.GetFileName(relDir);
-        var existing = FindTreeChild(parent, name);
-        var child = existing ?? DocumentsContract.CreateDocument(
-            ContentResolver!, parent, DocumentsContract.Document.MimeTypeDir, name)
-            ?? throw new System.IO.IOException($"无法创建目录 {relDir}");
-
-        cache[relDir] = child;
-        return child;
-    }
-
-    /// <summary>
-    /// 创建 .cs 文件时用的 MIME 类型。
-    ///
-    /// 不能用 "text/plain"：Android 内置的 Downloads / DocumentsUI 这类
-    /// DocumentsProvider 会拿 MIME 去查它自己的扩展名表，text/plain 对应的
-    /// 是 .txt，于是最终落盘的名字就变成 AAAFBKBHAKM.cs.txt —— 显示名我们
-    /// 给的是完整的 "xxx.cs"，扩展名却被它按 MIME 又追加了一遍。
-    ///
-    /// 换成 .cs 这个确切类型，它查不到对应扩展名，就老老实实用我们给的名字。
-    /// 万一某个 Provider 更挑剔、认不出这个类型，CreateDocument 会抛
-    /// IllegalArgumentException，届时退回 text/plain 至少还能写成功
-    /// （代价就是多一个 .txt 后缀，总比整个导出失败强）。
-    /// </summary>
-    private const string CSharpMime = "text/x-csharp";
-
-    private Android.Net.Uri CreateCSharpDocument(Android.Net.Uri parent, string fileName)
-    {
-        try
-        {
-            return DocumentsContract.CreateDocument(
-                ContentResolver!, parent, CSharpMime, fileName)!;
-        }
-        catch (Exception ex) when (ex is Java.Lang.IllegalArgumentException
-                                      or Java.Lang.UnsupportedOperationException)
-        {
-            return DocumentsContract.CreateDocument(
-                ContentResolver!, parent, "text/plain", fileName)
-                   ?? throw new System.IO.IOException($"无法创建 {fileName}");
-        }
-    }
-
-    /// <summary>把一个 .cs 写进 SAF 目录，返回是否成功。</summary>
-    private bool WriteToTree(Android.Net.Uri rootDoc,
-        Dictionary<string, Android.Net.Uri> cache, string relPath, string code)
-    {
-        var relDir = System.IO.Path.GetDirectoryName(relPath) ?? string.Empty;
-        var fileName = System.IO.Path.GetFileName(relPath);
-
-        var parent = EnsureTreeDir(rootDoc, cache, relDir);
-
-        // 同名的旧文件先删掉：直接 CreateDocument 会留下 xxx (1).cs 这种重复
-        var stale = FindTreeChild(parent, fileName);
-        if (stale != null) DocumentsContract.DeleteDocument(ContentResolver!, stale);
-
-        var doc = CreateCSharpDocument(parent, fileName);
-
-        var bytes = Encoding.UTF8.GetBytes(code);
-        using var output = ContentResolver!.OpenOutputStream(doc)
-                           ?? throw new System.IO.IOException($"无法写入 {relPath}");
-        output.Write(bytes, 0, bytes.Length);
-        output.Flush();
-        return true;
-    }
-
     private void WriteSingleFile(Android.Net.Uri uri)
     {
         try
@@ -697,13 +633,7 @@ public class CodeActivity : AppCompatActivity
                 var svc = AppState.Decompiler
                           ?? throw new InvalidOperationException("尚未加载程序集");
 
-                var rootId = DocumentsContract.GetTreeDocumentId(treeUri);
-                var rootDoc = DocumentsContract.BuildDocumentUriUsingTree(treeUri, rootId)
-                              ?? throw new System.IO.IOException("无法访问所选目录");
-                var dirs = new Dictionary<string, Android.Net.Uri>(StringComparer.Ordinal)
-                {
-                    [string.Empty] = rootDoc,
-                };
+                var writer = new SafTreeWriter(this, treeUri);
 
                 // 写盘和反编译都在这个后台线程上跑，所以不用锁；界面只读这几个字段
                 _exportDone = 0;
@@ -713,7 +643,7 @@ public class CodeActivity : AppCompatActivity
                 int written = 0;
                 svc.ExportAllSources((rel, code) =>
                 {
-                    WriteToTree(rootDoc, dirs, rel, code);
+                    writer.WriteSource(rel, code);
                     _exportDone = ++written;
                     return true;
                 },

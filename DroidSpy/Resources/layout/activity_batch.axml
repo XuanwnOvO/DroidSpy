@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical">
+
+  <com.google.android.material.appbar.MaterialToolbar
+      android:id="@+id/toolbar"
+      android:layout_width="match_parent"
+      android:layout_height="?attr/actionBarSize"
+      android:background="?attr/colorSurface"
+      app:navigationIcon="@drawable/ic_back"
+      app:title="@string/batch_title"
+      app:titleTextColor="?attr/colorOnSurface" />
+
+  <TextView
+      android:id="@+id/txtBatchHint"
+      android:layout_width="match_parent"
+      android:layout_height="wrap_content"
+      android:paddingHorizontal="20dp"
+      android:paddingTop="8dp"
+      android:paddingBottom="4dp"
+      android:text="@string/batch_found"
+      android:textAppearance="?attr/textAppearanceBodyMedium"
+      android:textColor="?attr/colorOnSurfaceVariant" />
+
+  <FrameLayout
+      android:layout_width="match_parent"
+      android:layout_height="0dp"
+      android:layout_weight="1">
+
+    <ListView
+        android:id="@+id/batchList"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:visibility="gone" />
+
+    <TextView
+        android:id="@+id/txtBatchEmpty"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center_vertical"
+        android:gravity="center"
+        android:paddingHorizontal="32dp"
+        android:text="@string/batch_scanning"
+        android:textAppearance="?attr/textAppearanceBodyMedium"
+        android:textColor="?attr/colorOnSurfaceVariant" />
+  </FrameLayout>
+
+  <com.google.android.material.button.MaterialButton
+      android:id="@+id/btnBatchStart"
+      android:layout_width="match_parent"
+      android:layout_height="64dp"
+      android:layout_marginHorizontal="20dp"
+      android:layout_marginTop="8dp"
+      android:layout_marginBottom="20dp"
+      android:enabled="false"
+      android:text="@string/batch_title"
+      android:textSize="16sp"
+      app:cornerRadius="18dp" />
+</LinearLayout>
