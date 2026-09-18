@@ -556,17 +556,21 @@ public class MainActivity : AppCompatActivity
         });
     }
 
-    /// <summary>从 UnityFS 资源包里提取托管程序集，返回提取出来的 dll 路径。</summary>
+    /// <summary>
+    /// 从 Unity 资源包里提取托管程序集，返回要加载的那个 dll 路径。
+    ///
+    /// 一个包里通常不止一个程序集（Assembly-CSharp.dll 之外还有各种第三方库），
+    /// 全部解出来放在以包名命名的子目录里，返回其中最该看的那个。
+    /// </summary>
     private string UnpackBundle(string bundlePath)
     {
         // 解包结果单独放一个目录：Unity 的 AssetBundle 常被命名成 xxx.dll，
         // 若就地生成同名文件，File.Create 会把正在读取的源文件截断。
         var name = System.IO.Path.GetFileNameWithoutExtension(bundlePath);
-        var dir = System.IO.Path.Combine(AssemblyStore.AssembliesDir(this), "unpacked");
-        var outPath = System.IO.Path.Combine(dir, $"{name}.dll");
+        var dir = System.IO.Path.Combine(AssemblyStore.AssembliesDir(this), "unpacked", name);
 
-        UnityBundleReader.ExtractAssembly(bundlePath, outPath);
-        return outPath;
+        var result = UnityBundleReader.ExtractAll(bundlePath, dir);
+        return result.PrimaryPath;
     }
 
     /// <summary>文件头就能看出不是 .NET 程序集时的说明。</summary>

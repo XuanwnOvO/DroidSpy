@@ -41,6 +41,19 @@ public static class UnityBundleReader
     /// <summary>解压后数据流的体积上限，超过就认为不是我们要处理的包。</summary>
     private const long MaxDataStreamSize = 1L << 30; // 1 GB
 
+    /// <summary>
+    /// 单个数据块解压后的体积上限。
+    /// 元数据里的块大小是包自己声明的，损坏或恶意的包可以声明成任意大，
+    /// 照着分配会直接把进程撑爆，所以按这个上限先卡一道。
+    /// </summary>
+    private const int MaxBlockSize = 128 * 1024 * 1024; // 128 MB
+
+    /// <summary>一个资源包里最多提取多少个程序集，防止异常包把目录刷爆。</summary>
+    private const int MaxAssemblies = 32;
+
+    /// <summary>优先打开的程序集名，其余按在数据流里出现的顺序排。</summary>
+    private static readonly string[] PreferredNames = { "Assembly-CSharp.dll" };
+
     /// <summary>文件头是不是一个认得出的 Unity 资源包。</summary>
     public static bool IsBundle(string path)
     {
@@ -71,17 +84,12 @@ public static class UnityBundleReader
     }
 
     /// <summary>
-    /// 从资源包中提取第一个内嵌的托管程序集。
+    /// 从资源包中提取全部内嵌的托管程序集，落到 <paramref name="outputDir"/> 下。
     /// 失败时抛 <see cref="InvalidDataException"/>，消息可直接展示给用户。
     /// </summary>
-    /// <returns>一段描述提取结果的信息。</returns>
-    public static string ExtractAssembly(string bundlePath, string outputPath)
+    /// <returns>提取结果，含每个程序集的路径和整个包的描述。</returns>
+    public static BundleExtract ExtractAll(string bundlePath, string outputDir)
     {
-        // 输出和输入是同一个文件时，写入会把源文件截断，读下去必然失败
-        if (string.Equals(Path.GetFullPath(bundlePath), Path.GetFullPath(outputPath),
-                StringComparison.OrdinalIgnoreCase))
-            throw new InvalidDataException("解包输出路径不能和源文件相同。");
-
         using var fs = File.OpenRead(bundlePath);
 
         // ---------- 1. 解析容器头 ----------
@@ -163,6 +171,12 @@ public static class UnityBundleReader
             uint unc = ReadU32Be(blocksInfo, ref q);
             uint comp = ReadU32Be(blocksInfo, ref q);
             int type = ReadU16Be(blocksInfo, ref q) & 0x3F;
+
+            // 块大小由包自己声明，按上限卡住再分配，避免异常包撑爆内存
+            if (unc > MaxBlockSize)
+                throw new InvalidDataException(
+                    $"资源包里有个数据块解压后达 {AssemblyStore.FormatSize(unc)}，超出处理上限。");
+
             blocks[i] = (unc, comp, type);
             dataStreamSize += unc;
         }
@@ -181,80 +195,180 @@ public static class UnityBundleReader
         dataStart = AlignUp(dataStart, dataAlignment);
         long cursor = dataStart;
 
-        long foundAt = -1;      // PE 在数据流中的绝对偏移
-        int foundLength = -1;   // PE 的真实长度（由节表推得）
-        long nextCollectAt = -1;
+        Directory.CreateDirectory(outputDir);
 
+        var found = new List<ExtractedAssembly>();
         var carry = Array.Empty<byte>();
-        long streamPos = 0;     // 当前块在数据流中的绝对偏移
+        long streamPos = 0;      // 当前块在数据流中的绝对偏移
 
-        Directory.CreateDirectory(Path.GetDirectoryName(outputPath)!);
-        using var output = File.Create(outputPath);
+        // 正在写出的目标：可能横跨多个块，跨块时把流留在 writingEnd 写完
+        FileStream? output = null;
+        long writingNext = -1;   // 下一个待写字节的绝对偏移
+        long writingEnd = -1;    // 目标的绝对结束偏移
 
-        foreach (var (unc, comp, type) in blocks)
+        try
         {
-            byte[]? chunk = DecompressBlock(fs, ref cursor, comp, unc, type);
-            if (chunk == null)
-                throw new InvalidDataException("资源包数据块解压失败，可能已加密或损坏。");
-
-            // 拼接上一块尾部，保证跨块边界的 PE 头能被完整看到
-            var combined = new byte[carry.Length + chunk.Length];
-            Buffer.BlockCopy(carry, 0, combined, 0, carry.Length);
-            Buffer.BlockCopy(chunk, 0, combined, carry.Length, chunk.Length);
-            long combinedBase = streamPos - carry.Length;
-
-            // 还没找到目标时，扫描窗口里有没有托管 PE
-            if (foundAt < 0)
+            foreach (var (unc, comp, type) in blocks)
             {
-                int scanTo = combined.Length - ProbeHeadBytes;
-                for (int i = 0; i <= scanTo; i++)
-                {
-                    if (combined[i] != (byte)'M' || combined[i + 1] != (byte)'Z') continue;
-                    if (!IsManagedPe(combined, i)) continue;
+                byte[]? chunk = DecompressBlock(fs, ref cursor, comp, unc, type);
+                if (chunk == null)
+                    throw new InvalidDataException("资源包数据块解压失败，可能已加密或损坏。");
 
-                    int len = ComputePeLength(combined, i);
-                    if (len <= 0) continue;
-
-                    foundAt = combinedBase + i;
-                    foundLength = len;
-                    nextCollectAt = foundAt;
-                    break;
-                }
-            }
-
-            // 已锁定目标：把落在本窗口内的字节写出去
-            if (foundAt >= 0 && nextCollectAt < foundAt + foundLength)
-            {
+                // 拼接上一块尾部，保证跨块边界的 PE 头能被完整看到
+                var combined = new byte[carry.Length + chunk.Length];
+                Buffer.BlockCopy(carry, 0, combined, 0, carry.Length);
+                Buffer.BlockCopy(chunk, 0, combined, carry.Length, chunk.Length);
+                long combinedBase = streamPos - carry.Length;
                 long combinedEnd = combinedBase + combined.Length;
-                if (nextCollectAt >= combinedBase && nextCollectAt < combinedEnd)
+                int scan = 0;
+
+                while (true)
                 {
-                    int local = (int)(nextCollectAt - combinedBase);
-                    long remain = foundAt + foundLength - nextCollectAt;
-                    int take = (int)Math.Min(combined.Length - local, remain);
-                    output.Write(combined, local, take);
-                    nextCollectAt += take;
+                    // ---------- 4a. 先把没写完的目标续上 ----------
+                    if (output != null)
+                    {
+                        if (writingNext >= combinedEnd) break;   // 这一块还没轮到它
+
+                        int local = (int)Math.Max(0, writingNext - combinedBase);
+                        if (local >= combined.Length) break;
+
+                        long remain = writingEnd - writingNext;
+                        int take = (int)Math.Min(combined.Length - local, remain);
+                        output.Write(combined, local, take);
+                        writingNext += take;
+
+                        if (writingNext < writingEnd) break;     // 还没写完，等下一块
+                        output.Dispose();
+                        output = null;
+                    }
+
+                    // ---------- 4b. 在窗口里找下一个托管 PE ----------
+                    if (found.Count >= MaxAssemblies) break;
+                    if (combined.Length < ProbeHeadBytes) break;
+
+                    int hit = -1, hitLen = 0;
+                    for (int i = scan; i <= combined.Length - ProbeHeadBytes; i++)
+                    {
+                        if (combined[i] != (byte)'M' || combined[i + 1] != (byte)'Z') continue;
+
+                        // 滑动窗口会把上一块的尾部带进来，同一个 PE 头可能被扫到两次
+                        if (found.Exists(f => f.Offset == combinedBase + i)) continue;
+                        if (!IsManagedPe(combined, i)) continue;
+
+                        int len = ComputePeLength(combined, i);
+                        if (len <= 0) continue;
+
+                        hit = i;
+                        hitLen = len;
+                        break;
+                    }
+
+                    if (hit < 0) break;
+
+                    long abs = combinedBase + hit;
+                    string path = Path.Combine(outputDir, $"unpacked_{found.Count}.dll");
+                    found.Add(new ExtractedAssembly(path, abs, hitLen));
+
+                    // 整个目标都在本窗口里就直接写完，否则留到后面的块续
+                    int avail = Math.Min(combined.Length - hit, hitLen);
+                    output = File.Create(path);
+                    output.Write(combined, hit, avail);
+
+                    if (avail >= hitLen)
+                    {
+                        output.Dispose();
+                        output = null;
+                    }
+                    else
+                    {
+                        writingNext = abs + avail;
+                        writingEnd = abs + hitLen;
+                    }
+
+                    scan = hit + 2;
                 }
+
+                streamPos += chunk.Length;
+
+                // 裁剪滑动窗口
+                int keep = Math.Min(combined.Length, CarryBytes);
+                carry = new byte[keep];
+                Buffer.BlockCopy(combined, combined.Length - keep, carry, 0, keep);
+
+                if (found.Count >= MaxAssemblies) break;
             }
-
-            streamPos += chunk.Length;
-
-            // 裁剪滑动窗口
-            int keep = Math.Min(combined.Length, CarryBytes);
-            carry = new byte[keep];
-            Buffer.BlockCopy(combined, combined.Length - keep, carry, 0, keep);
-
-            if (foundAt >= 0 && nextCollectAt >= foundAt + foundLength) break;
+        }
+        finally
+        {
+            output?.Dispose();
         }
 
-        if (foundAt < 0)
+        if (found.Count == 0)
             throw new InvalidDataException("资源包里没有找到 .NET 程序集，可能这是一个纯资源包。");
 
-        long written = new FileInfo(outputPath).Length;
-        string node = nodePaths.Count > 0 ? nodePaths[0] : "(无节点)";
-        string unity = string.IsNullOrEmpty(unityVersion) ? "" : $" · Unity {unityVersion}";
-        return $"{signature} v{version}{unity}\n" +
-               $"节点 {node}\n" +
-               $"程序集 {AssemblyStore.FormatSize(written)} @ 数据流偏移 {foundAt}";
+        return new BundleExtract(signature, version, unityVersion, nodePaths, found)
+        {
+            OutputDir = outputDir,
+        };
+    }
+
+    /// <summary>从资源包里提取托管程序集。保留单个结果的入口，供只关心主程序集的调用方使用。</summary>
+    public static string ExtractAssembly(string bundlePath, string outputDir)
+        => ExtractAll(bundlePath, outputDir).PrimaryPath;
+
+    // ------------------------------------------------------------ 提取结果
+
+    /// <summary>从资源包里解出来的一个托管程序集。</summary>
+    public sealed record ExtractedAssembly(string Path, long Offset, long Length)
+    {
+        public string FileName => System.IO.Path.GetFileName(Path);
+    }
+
+    /// <summary>一次解包的完整结果。</summary>
+    public sealed record BundleExtract(
+        string Signature,
+        uint Version,
+        string UnityVersion,
+        List<string> NodePaths,
+        List<ExtractedAssembly> Assemblies)
+    {
+        public string OutputDir { get; init; } = "";
+
+        /// <summary>
+        /// 优先打开的那个程序集。
+        /// Unity 游戏的业务逻辑都在 Assembly-CSharp.dll 里，其余多是第三方库，
+        /// 所以按名字优先挑它，挑不到就退而取第一个。
+        /// </summary>
+        public string PrimaryPath
+        {
+            get
+            {
+                foreach (var name in PreferredNames)
+                {
+                    var hit = Assemblies.Find(a =>
+                        string.Equals(a.FileName, name, StringComparison.OrdinalIgnoreCase));
+                    if (hit != null) return hit.Path;
+                }
+                return Assemblies[0].Path;
+            }
+        }
+
+        /// <summary>给界面用的一行描述。</summary>
+        public string Describe()
+        {
+            string unity = string.IsNullOrEmpty(UnityVersion) ? "" : $" · Unity {UnityVersion}";
+            string node = NodePaths.Count > 0 ? NodePaths[0] : "(无节点)";
+            long total = 0;
+            foreach (var a in Assemblies) total += a.Length;
+
+            string extra = Assemblies.Count > 1
+                ? $"\n还解出 {Assemblies.Count - 1} 个附带程序集"
+                : "";
+
+            return $"{Signature} v{Version}{unity}\n" +
+                   $"节点 {node}\n" +
+                   $"程序集 {Assemblies.Count} 个，共 {AssemblyStore.FormatSize(total)}{extra}";
+        }
     }
 
     /// <summary>解析索引里的节点表。老格式的字段顺序和宽度都不一样。</summary>
