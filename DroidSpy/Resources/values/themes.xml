@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+  <!-- 真 Material 3 主题：来自 Material Components for Android -->
+  <style name="Theme.DroidSpy" parent="Theme.Material3.DayNight.NoActionBar">
+    <item name="android:statusBarColor">?attr/colorSurface</item>
+    <item name="android:windowLightStatusBar">?attr/isLightTheme</item>
+  </style>
+
+  <style name="Theme.DroidSpy.Splash" parent="Theme.DroidSpy" />
+
+  <!-- 圆形头像：ShapeableImageView 用 -->
+  <style name="ShapeAppearanceOverlay.DroidSpy.Circle" parent="">
+    <item name="cornerFamily">rounded</item>
+    <item name="cornerSize">50%</item>
+  </style>
+
+  <!-- 应用图标底的圆角方形 -->
+  <style name="ShapeAppearanceOverlay.DroidSpy.Squircle" parent="">
+    <item name="cornerFamily">rounded</item>
+    <item name="cornerSize">28%</item>
+  </style>
+
+</resources>

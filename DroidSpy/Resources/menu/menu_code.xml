@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+
+  <item
+      android:id="@+id/action_il"
+      android:title="@string/show_il"
+      app:showAsAction="never" />
+
+  <item
+      android:id="@+id/action_members"
+      android:title="@string/members_header"
+      app:showAsAction="never" />
+
+  <item
+      android:id="@+id/action_wrap"
+      android:title="@string/word_wrap_off"
+      app:showAsAction="never" />
+
+  <item
+      android:id="@+id/action_share"
+      android:title="@string/share"
+      app:showAsAction="never" />
+
+  <item
+      android:id="@+id/action_export_all"
+      android:title="@string/export_all_cs"
+      app:showAsAction="never" />
+
+</menu>

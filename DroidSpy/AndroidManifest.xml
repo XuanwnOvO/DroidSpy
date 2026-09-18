@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+  <!-- 关于页面从 QQ 头像接口拉图片；MCP 服务在局域网里收发请求 -->
+  <uses-permission android:name="android.permission.INTERNET" />
+  <!-- MCP 服务要绑到所有网卡，需要知道 Wi-Fi 是否可用/当前地址 -->
+  <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+  <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
+
+  <application
+      android:allowBackup="true"
+      android:icon="@mipmap/ic_launcher"
+      android:label="@string/app_name"
+      android:supportsRtl="true"
+      android:theme="@style/Theme.DroidSpy"
+      android:largeHeap="true" />
+</manifest>

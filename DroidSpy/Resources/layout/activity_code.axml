@@ -1,0 +1,201 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.drawerlayout.widget.DrawerLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/drawer"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+  <!-- ================= 主内容 ================= -->
+  <LinearLayout
+      android:layout_width="match_parent"
+      android:layout_height="match_parent"
+      android:orientation="vertical">
+
+    <com.google.android.material.appbar.MaterialToolbar
+        android:id="@+id/toolbar"
+        android:layout_width="match_parent"
+        android:layout_height="?attr/actionBarSize"
+        android:background="?attr/colorSurface"
+        app:navigationIcon="@drawable/ic_menu" />
+
+    <!-- 代码区 -->
+    <FrameLayout
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:background="@color/code_bg">
+
+      <!--
+        行号列与代码列各自是一个纵向 ScrollView，代码列外面再套一层
+        横向 ScrollView 让长行可以左右滑动。纵向滚动由代码列驱动，
+        行号列跟随（见 CodeActivity.SyncScroll）。
+      -->
+      <LinearLayout
+          android:layout_width="match_parent"
+          android:layout_height="match_parent"
+          android:orientation="horizontal">
+
+        <ScrollView
+            android:id="@+id/lineScroll"
+            android:layout_width="wrap_content"
+            android:layout_height="match_parent"
+            android:scrollbars="none">
+
+          <TextView
+              android:id="@+id/lineNumbers"
+              android:layout_width="wrap_content"
+              android:layout_height="wrap_content"
+              android:fontFamily="monospace"
+              android:gravity="end"
+              android:minWidth="44dp"
+              android:paddingStart="10dp"
+              android:paddingEnd="8dp"
+              android:paddingTop="12dp"
+              android:paddingBottom="24dp"
+              android:textColor="?attr/colorOutline"
+              android:textIsSelectable="false"
+              android:textSize="12sp" />
+        </ScrollView>
+
+        <HorizontalScrollView
+            android:id="@+id/hscroll"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:scrollbars="horizontal">
+
+          <ScrollView
+              android:id="@+id/codeScroll"
+              android:layout_width="wrap_content"
+              android:layout_height="match_parent"
+              android:scrollbars="vertical">
+
+            <TextView
+                android:id="@+id/codeText"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:fontFamily="monospace"
+                android:paddingStart="6dp"
+                android:paddingEnd="28dp"
+                android:paddingTop="12dp"
+                android:paddingBottom="24dp"
+                android:textColor="@color/code_text"
+                android:textIsSelectable="true"
+                android:textSize="12sp" />
+          </ScrollView>
+        </HorizontalScrollView>
+      </LinearLayout>
+
+      <com.google.android.material.progressindicator.LinearProgressIndicator
+          android:id="@+id/progress"
+          android:layout_width="match_parent"
+          android:layout_height="wrap_content"
+          android:layout_gravity="top"
+          android:indeterminate="true"
+          android:visibility="gone"
+          app:trackCornerRadius="2dp" />
+    </FrameLayout>
+
+    <!-- 底部操作条 -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="?attr/colorSurfaceContainer"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingHorizontal="8dp"
+        android:paddingVertical="4dp">
+
+      <com.google.android.material.button.MaterialButton
+          android:id="@+id/btnFontDown"
+          style="@style/Widget.Material3.Button.TextButton"
+          android:layout_width="wrap_content"
+          android:layout_height="wrap_content"
+          android:minWidth="48dp"
+          android:text="A-" />
+
+      <com.google.android.material.button.MaterialButton
+          android:id="@+id/btnFontUp"
+          style="@style/Widget.Material3.Button.TextButton"
+          android:layout_width="wrap_content"
+          android:layout_height="wrap_content"
+          android:minWidth="48dp"
+          android:text="A+" />
+
+      <com.google.android.material.button.MaterialButton
+          android:id="@+id/btnWrap"
+          style="@style/Widget.Material3.Button.TextButton"
+          android:layout_width="wrap_content"
+          android:layout_height="wrap_content"
+          android:text="@string/word_wrap_on" />
+
+      <com.google.android.material.button.MaterialButton
+          android:id="@+id/btnCopy"
+          style="@style/Widget.Material3.Button.TextButton"
+          android:layout_width="wrap_content"
+          android:layout_height="wrap_content"
+          android:text="@string/copy_all" />
+    </LinearLayout>
+  </LinearLayout>
+
+  <!-- ================= 类列表抽屉 ================= -->
+  <LinearLayout
+      android:id="@+id/drawerPanel"
+      android:layout_width="320dp"
+      android:layout_height="match_parent"
+      android:layout_gravity="start"
+      android:background="?attr/colorSurfaceContainerLow"
+      android:elevation="2dp"
+      android:orientation="vertical">
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="?attr/actionBarSize"
+        android:gravity="center_vertical"
+        android:paddingHorizontal="20dp"
+        android:text="@string/class_list"
+        android:textAppearance="?attr/textAppearanceTitleMedium"
+        android:textColor="?attr/colorOnSurface" />
+
+    <com.google.android.material.textfield.TextInputLayout
+        style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginHorizontal="12dp"
+        android:layout_marginBottom="6dp"
+        app:boxCornerRadiusBottomEnd="14dp"
+        app:boxCornerRadiusBottomStart="14dp"
+        app:boxCornerRadiusTopEnd="14dp"
+        app:boxCornerRadiusTopStart="14dp"
+        app:startIconDrawable="@drawable/ic_search">
+
+      <com.google.android.material.textfield.TextInputEditText
+          android:id="@+id/editFilter"
+          android:layout_width="match_parent"
+          android:layout_height="wrap_content"
+          android:hint="@string/filter_class"
+          android:imeOptions="actionSearch"
+          android:inputType="text"
+          android:maxLines="1" />
+    </com.google.android.material.textfield.TextInputLayout>
+
+    <TextView
+        android:id="@+id/txtClassCount"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:paddingHorizontal="20dp"
+        android:paddingVertical="6dp"
+        android:textAppearance="?attr/textAppearanceLabelMedium"
+        android:textColor="?attr/colorOnSurfaceVariant" />
+
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/classList"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:clipToPadding="false"
+        android:paddingBottom="24dp"
+        android:scrollbars="vertical" />
+  </LinearLayout>
+
+</androidx.drawerlayout.widget.DrawerLayout>

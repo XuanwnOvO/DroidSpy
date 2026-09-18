@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+  <!-- 应用内代码视图配色（跟随 MD3 浅色基线） -->
+  <color name="code_bg">#FFFBFE</color>
+  <color name="code_text">#1C1B1F</color>
+  <color name="code_keyword">#7B4EA8</color>
+  <color name="code_type">#0F6B5C</color>
+  <color name="code_string">#A03A2E</color>
+  <color name="code_comment">#6F7B72</color>
+  <color name="code_number">#1F5FA8</color>
+  <color name="code_punct">#5A5A5A</color>
+</resources>

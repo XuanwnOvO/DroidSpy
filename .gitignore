@@ -1,0 +1,31 @@
+# 构建产物
+[Bb]in/
+[Oo]bj/
+
+# 调试 / 探针工程
+.probe/
+
+# 签名与产物
+*.apk
+*.aab
+*.keystore
+*.jks
+*.p12
+
+# IDE
+.vs/
+.idea/
+*.user
+*.suo
+*.userprefs
+
+# 运行时产生的数据（笔记 / 重命名）
+droidspy-notes.json
+droidspy-renames.json
+
+# SDK 安装日志
+_sdk_install.log
+
+# 系统
+Thumbs.db
+.DS_Store

@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+  <!-- 放大镜手柄 -->
+  <path
+      android:fillColor="#7FD4C1"
+      android:pathData="M66.5,64.2l9.1,9.1a2.2,2.2 0,0 1,-3.1 3.1l-9.1,-9.1z" />
+  <!-- 放大镜环 -->
+  <path
+      android:fillColor="#7FD4C1"
+      android:pathData="M49,32m-16,0a16,16 0,1 1,32 0a16,16 0,1 1,-32 0M49,35.5a12.5,12.5 0,1 0,0 -25a12.5,12.5 0,1 0,0 25z" />
+  <!-- 中心代码符号 -->
+  <path
+      android:fillColor="#E6F1EE"
+      android:pathData="M45.6,24.4l-3.2,17.2h2.4l3.2,-17.2zM51.2,24.4l-3.2,17.2h2.4l3.2,-17.2z" />
+</vector>
