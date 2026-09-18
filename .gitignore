@@ -29,3 +29,6 @@ _sdk_install.log
 # 系统
 Thumbs.db
 .DS_Store
+
+# 打包产物
+.release/
