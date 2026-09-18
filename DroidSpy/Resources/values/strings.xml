@@ -8,6 +8,13 @@
   <string name="open_folder_hint">DLL 只要放在子目录里也能一并找到</string>
   <string name="recent_files">最近打开</string>
   <string name="no_recent">还没有打开过文件</string>
+  <string name="recent_clear">清空</string>
+  <string name="recent_clear_title">清空最近打开？</string>
+  <string name="recent_clear_msg">将清掉全部 %1$d 条记录，并删除导入时缓存的程序集文件。源文件不受影响。</string>
+  <string name="recent_remove_title">删除这条记录？</string>
+  <string name="recent_remove_msg">%1$s\n\n会一并删掉导入时缓存的程序集文件，源文件不受影响。</string>
+  <string name="recent_removed">已删除</string>
+  <string name="delete">删除</string>
 
   <string name="search_hint">搜索类型 / 方法 / 字段 / 字符串</string>
   <string name="search_tip">输入关键字后自动搜索类型名与成员名</string>

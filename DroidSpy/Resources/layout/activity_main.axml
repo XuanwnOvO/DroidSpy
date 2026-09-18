@@ -75,16 +75,37 @@
             android:textColor="?attr/colorOnSurfaceVariant" />
       </LinearLayout>
 
-      <TextView
-          android:id="@+id/txtRecentHeader"
+      <LinearLayout
           android:layout_width="match_parent"
           android:layout_height="wrap_content"
+          android:gravity="center_vertical"
+          android:orientation="horizontal"
           android:paddingHorizontal="20dp"
           android:paddingTop="4dp"
-          android:paddingBottom="8dp"
-          android:text="@string/recent_files"
-          android:textAppearance="?attr/textAppearanceTitleSmall"
-          android:textColor="?attr/colorPrimary" />
+          android:paddingBottom="8dp">
+
+        <TextView
+            android:id="@+id/txtRecentHeader"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="@string/recent_files"
+            android:textAppearance="?attr/textAppearanceTitleSmall"
+            android:textColor="?attr/colorPrimary" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnRecentClear"
+            style="?attr/borderlessButtonStyle"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:minWidth="0dp"
+            android:minHeight="0dp"
+            android:paddingHorizontal="12dp"
+            android:paddingVertical="4dp"
+            android:text="@string/recent_clear"
+            android:textSize="13sp"
+            android:visibility="gone" />
+      </LinearLayout>
 
       <TextView
           android:id="@+id/txtNoRecent"

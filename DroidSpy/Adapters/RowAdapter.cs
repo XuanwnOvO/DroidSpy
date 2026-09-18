@@ -16,6 +16,9 @@ public sealed class RowAdapter : RecyclerView.Adapter
 
     public event EventHandler<RowItem>? ItemClick;
 
+    /// <summary>长按某一行。没订阅就不响应，普通列表不受影响。</summary>
+    public event EventHandler<RowItem>? ItemLongClick;
+
     public override int ItemCount => _items.Count;
 
     public void Submit(IEnumerable<RowItem> items)
@@ -29,7 +32,7 @@ public sealed class RowAdapter : RecyclerView.Adapter
     {
         var view = LayoutInflater.From(parent.Context)!
             .Inflate(Resource.Layout.item_row, parent, false)!;
-        return new RowHolder(view, OnRowClick);
+        return new RowHolder(view, OnRowClick, OnRowLongClick);
     }
 
     public override void OnBindViewHolder(RecyclerView.ViewHolder holder, int position)
@@ -41,26 +44,39 @@ public sealed class RowAdapter : RecyclerView.Adapter
 
     private void OnRowClick(RowItem item) => ItemClick?.Invoke(this, item);
 
+    private void OnRowLongClick(RowItem item) => ItemLongClick?.Invoke(this, item);
+
     private sealed class RowHolder : RecyclerView.ViewHolder
     {
         private readonly TextView _badge;
         private readonly TextView _title;
         private readonly TextView _subtitle;
         private readonly Action<RowItem> _callback;
+        private readonly Action<RowItem> _longCallback;
         private RowItem? _current;
 
-        public RowHolder(View view, Action<RowItem> callback) : base(view)
+        public RowHolder(View view, Action<RowItem> callback, Action<RowItem> longCallback)
+            : base(view)
         {
             _badge = view.FindViewById<TextView>(Resource.Id.rowBadge)!;
             _title = view.FindViewById<TextView>(Resource.Id.rowTitle)!;
             _subtitle = view.FindViewById<TextView>(Resource.Id.rowSubtitle)!;
             _callback = callback;
+            _longCallback = longCallback;
 
             // 用 ViewHolder 缓存的数据回调，避免复用时的 position 错位
             view.Clickable = true;
             view.Click += (_, _) =>
             {
                 if (_current != null) _callback(_current);
+            };
+
+            view.LongClickable = true;
+            view.LongClick += (_, e) =>
+            {
+                if (_current == null) return;
+                _longCallback(_current);
+                e.Handled = true;
             };
         }
 

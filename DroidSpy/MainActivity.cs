@@ -60,6 +60,7 @@ public class MainActivity : AppCompatActivity
 
     private RowAdapter _recentAdapter = null!;
     private TextView _txtNoRecent = null!;
+    private MaterialButton _btnRecentClear = null!;
     private MaterialToolbar _toolbar = null!;
     private View _pageHome = null!, _pageMcp = null!, _pageAbout = null!;
 
@@ -100,6 +101,13 @@ public class MainActivity : AppCompatActivity
         {
             if (item.Payload is string path) OpenAssembly(path);
         };
+        _recentAdapter.ItemLongClick += (_, item) =>
+        {
+            if (item.Payload is string path) ConfirmRemoveRecent(path);
+        };
+
+        _btnRecentClear = FindViewById<MaterialButton>(Resource.Id.btnRecentClear)!;
+        _btnRecentClear.Click += (_, _) => ConfirmClearRecent();
 
         var list = FindViewById<RecyclerView>(Resource.Id.recentList)!;
         list.SetLayoutManager(new LinearLayoutManager(this));
@@ -651,5 +659,42 @@ public class MainActivity : AppCompatActivity
 
         _recentAdapter.Submit(rows);
         _txtNoRecent.Visibility = rows.Count == 0 ? ViewStates.Visible : ViewStates.Gone;
+        _btnRecentClear.Visibility = rows.Count == 0 ? ViewStates.Gone : ViewStates.Visible;
+    }
+
+    /// <summary>长按一条记录：确认后删掉记录和它缓存的副本文件。</summary>
+    private void ConfirmRemoveRecent(string path)
+    {
+        new MaterialAlertDialogBuilder(this)
+            .SetTitle(Resource.String.recent_remove_title)!
+            .SetMessage(GetString(Resource.String.recent_remove_msg,
+                System.IO.Path.GetFileName(path)))!
+            .SetNegativeButton(Resource.String.cancel, (IDialogInterfaceOnClickListener?)null)!
+            .SetPositiveButton(Resource.String.delete, (_, _) =>
+            {
+                AssemblyStore.RemoveRecent(this, path);
+                RefreshRecent();
+                Toast.MakeText(this, Resource.String.recent_removed, ToastLength.Short)!.Show();
+            })!
+            .Show();
+    }
+
+    /// <summary>点「清空」：确认后清掉全部记录和缓存文件。</summary>
+    private void ConfirmClearRecent()
+    {
+        var count = AssemblyStore.GetRecent(this).Count;
+        if (count == 0) return;
+
+        new MaterialAlertDialogBuilder(this)
+            .SetTitle(Resource.String.recent_clear_title)!
+            .SetMessage(GetString(Resource.String.recent_clear_msg, count))!
+            .SetNegativeButton(Resource.String.cancel, (IDialogInterfaceOnClickListener?)null)!
+            .SetPositiveButton(Resource.String.delete, (_, _) =>
+            {
+                AssemblyStore.ClearRecentAndCache(this);
+                RefreshRecent();
+                Toast.MakeText(this, Resource.String.recent_removed, ToastLength.Short)!.Show();
+            })!
+            .Show();
     }
 }

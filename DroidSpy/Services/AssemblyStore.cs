@@ -90,6 +90,39 @@ public static class AssemblyStore
     public static void ClearRecent(Context ctx) =>
         GetPrefs(ctx).Edit()!.Remove(RecentKey)!.Apply();
 
+    /// <summary>删掉一条最近记录，连同导入时缓存的程序集文件。</summary>
+    public static void RemoveRecent(Context ctx, string path)
+    {
+        var list = GetRecent(ctx);
+        if (!list.Remove(path)) return;
+        Save(ctx, list);
+        DeleteCache(ctx, path);
+    }
+
+    /// <summary>清空最近记录，并删掉它们对应的缓存文件（只清 files/assemblies 下的）。</summary>
+    public static void ClearRecentAndCache(Context ctx)
+    {
+        foreach (var path in GetRecent(ctx)) DeleteCache(ctx, path);
+        ClearRecent(ctx);
+    }
+
+    /// <summary>
+    /// 删除导入的缓存副本。只认自己目录里的文件，避免记录被改写后误删用户别处的文件。
+    /// </summary>
+    private static void DeleteCache(Context ctx, string path)
+    {
+        try
+        {
+            if (!string.Equals(Path.GetDirectoryName(path), AssembliesDir(ctx),
+                    StringComparison.Ordinal)) return;
+            if (File.Exists(path)) File.Delete(path);
+        }
+        catch
+        {
+            // 文件被占用或已删，记录清掉就够了
+        }
+    }
+
     private static void Save(Context ctx, List<string> list) =>
         GetPrefs(ctx).Edit()!.PutString(RecentKey, string.Join('\u0001', list))!.Apply();
 
