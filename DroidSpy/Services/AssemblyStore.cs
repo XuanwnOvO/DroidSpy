@@ -144,7 +144,7 @@ public static class AssemblyStore
         /// <summary>IL2CPP 游戏的 global-metadata.dat。</summary>
         Il2CppMetadata,
 
-        /// <summary>UnityFS 资源包，里面可能压着 Assembly-CSharp.dll。</summary>
+        /// <summary>Unity 资源包，里面可能压着 Assembly-CSharp.dll。</summary>
         UnityBundle,
 
         /// <summary>认不出来。</summary>
@@ -160,13 +160,12 @@ public static class AssemblyStore
         try
         {
             using var fs = File.OpenRead(path);
-            var head = new byte[8];
-            if (fs.Read(head, 0, 8) < 4) return FileKind.Unknown;
+            var head = new byte[16];
+            if (fs.Read(head, 0, head.Length) < 4) return FileKind.Unknown;
 
             // Unity 资源包，解开之后里面通常就是 Assembly-CSharp.dll
-            if (head[0] == (byte)'U' && head[1] == (byte)'n' && head[2] == (byte)'i'
-                && head[3] == (byte)'t' && head[4] == (byte)'y' && head[5] == (byte)'F'
-                && head[6] == (byte)'S' && head[7] == 0)
+            if (Matches(head, "UnityFS", 0) || Matches(head, "UnityWeb", 0)
+                || Matches(head, "UnityRaw", 0))
                 return FileKind.UnityBundle;
 
             // IL2CPP 的 global-metadata.dat 魔数 0xFAB11BAF（小端存放）
@@ -182,6 +181,15 @@ public static class AssemblyStore
         {
             return FileKind.Unknown;
         }
+    }
+
+    /// <summary>比较文件头里从 <paramref name="offset"/> 开始的签名，末尾必须跟 0。</summary>
+    private static bool Matches(byte[] head, string signature, int offset)
+    {
+        if (offset + signature.Length + 1 > head.Length) return false;
+        for (int i = 0; i < signature.Length; i++)
+            if (head[offset + i] != (byte)signature[i]) return false;
+        return head[offset + signature.Length] == 0;
     }
 
     /// <summary>PE 可选头的数据目录第 15 项（CLI Header）非空即为托管程序集。</summary>

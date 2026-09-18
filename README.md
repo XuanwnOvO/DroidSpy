@@ -1,4 +1,4 @@
-﻿<div align="center">
+<div align="center">
 
 # DroidSpy
 
@@ -67,8 +67,9 @@ DroidSpy 把这一整套搬到手机上 —— **从解包到看源码，全程�
 
 ### Unity 资源包
 
-- 直接解包 **UnityFS** 格式的资源包，自动从里面**找出所有 .NET DLL**
-- 基于 `LZ4` 解压，支持 LZ4 / LZ4HC 块
+- 直接解包资源包，自动从里面**找出所有 .NET DLL**
+- 认三种容器：**UnityFS**（Unity 5.3 以后）、**UnityWeb** / **UnityRaw**（更老的格式，第 6 版起内部结构与 UnityFS 一致）
+- 认四种压缩：**不压缩 / LZ4 / LZ4HC / LZMA**
 
 ### 导出
 
@@ -89,6 +90,24 @@ DroidSpy 把这一整套搬到手机上 —— **从解包到看源码，全程�
 - 提供 **20 个工具**：`assembly_info`、`list_types`、`search_members`、`decompile_type`、`type_members`、`decompile_member`、`get_il`、`search_source`、`find_references`、`find_usages`、`search_strings`、`type_hierarchy`、`assembly_references`、`current_type`、`save_note`、`list_notes`、`delete_note`、`set_rename`、`list_renames`、`clear_rename`
 
 也就是说，你可以让 AI 直接分析手机上的这个 DLL，不用先把文件传过去。
+
+---
+
+## 支持范围
+
+想省事的话，对照下面这张表看你的文件能不能直接用：
+
+| 你的文件 | 支持情况 |
+| --- | --- |
+| `Assembly-CSharp.dll`（Unity Mono 后端） | ✅ 最推荐的用法，直接打开 |
+| 自己写的 .NET 类库 / 应用 | ✅ 只要能读出元数据都能反编译 |
+| `UnityFS` 资源包（`.bundle` / `.assets` / 无扩展名） | ✅ 自动解包并列出里面的 DLL |
+| `UnityWeb` / `UnityRaw` 老格式资源包 | ✅ 老包也能解 |
+| Unity 资源包用 LZMA 压缩（Unity 的默认选项） | ✅ 已支持 |
+| Unity 资源包用 LZ4 / LZ4HC 压缩 | ✅ 已支持 |
+| 加密过的资源包 | ❌ 解包会明确提示"可能已加密"，不会静默失败 |
+| `libil2cpp.so` + `global-metadata.dat`（IL2CPP 后端） | ❌ 不打算支持，架构不同，做不了 |
+| 原生 `.so` / 不含托管元数据的 `.exe` | ❌ 能识别出来并告诉你它是什么，但反编译不了 |
 
 ---
 
@@ -141,7 +160,7 @@ dotnet build DroidSpy/DroidSpy.csproj -c Release
 | 语言 / 框架 | C# / .NET for Android（`net9.0-android35.0`） |
 | 反编译引擎 | ICSharpCode.Decompiler（ILSpy / dnSpy 同款） |
 | 界面 | Material 3 + Material You 动态取色 |
-| 压缩 | K4os.Compression.LZ4 |
+| 压缩 | K4os.Compression.LZ4、SharpCompress |
 | 元数据读写 | `System.Reflection.Metadata` |
 
 ---
@@ -153,7 +172,8 @@ DroidSpy 站在这些项目的肩膀上，感谢作者们的付出：
 | 项目 | 版本 | 用途 |
 | --- | --- | --- |
 | [ICSharpCode.Decompiler](https://github.com/icsharpcode/ILSpy) | 9.1.0.7988 | 反编译引擎，dnSpy / ILSpy 同款 |
-| [K4os.Compression.LZ4](https://github.com/MiloszKrajewski/K4os.Compression.LZ4) | 1.3.8 | 解包 UnityFS 资源包用的 LZ4 解压 |
+| [K4os.Compression.LZ4](https://github.com/MiloszKrajewski/K4os.Compression.LZ4) | 1.3.8 | 解包资源包用的 LZ4 解压 |
+| [SharpCompress](https://github.com/adamhathcock/sharpcompress) | 0.39.0 | 解包资源包用的 LZMA 解压 |
 | [Xamarin.Google.Android.Material](https://github.com/xamarin/GooglePlayServicesComponents) | 1.14.0.6 | Material 3 界面组件 |
 
 ---

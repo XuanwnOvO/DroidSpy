@@ -4,20 +4,30 @@ using System.Collections.Generic;
 using System.IO;
 using System.Text;
 using K4os.Compression.LZ4;
+using SharpCompress.Compressors.LZMA;
 
 namespace DroidSpy.Services;
 
 /// <summary>
-/// UnityFS（AssetBundle）解包器。
+/// Unity 资源包（AssetBundle）解包器。
 ///
-/// Unity 游戏发布时，Assembly-CSharp.dll 往往被 LZ4 / LZ4HC 压缩后塞进 AssetBundle
-/// （文件头是 "UnityFS"），直接交给反编译引擎只会报元数据异常。这里把它解开，
+/// Unity 游戏发布时，Assembly-CSharp.dll 往往被 LZ4 / LZMA 压缩后塞进资源包，
+/// 直接交给反编译引擎只会报元数据异常。这里把它解开，
 /// 在解压后的数据流里定位内嵌的托管 PE，并原样提取成 .dll。
+///
+/// 支持的容器：
+///   UnityFS                  —— Unity 5.3 以后的标准格式
+///   UnityWeb / UnityRaw      —— 更老的格式，version 6 时内部结构与 UnityFS 相同
+///
+/// 支持的压缩：不压缩 / LZ4 / LZ4HC / LZMA。
 ///
 /// 全部流式处理：包体和数据流都不整体读进内存，避免大游戏包 OOM。
 /// </summary>
 public static class UnityBundleReader
 {
+    /// <summary>认得出的容器签名。</summary>
+    private static readonly string[] KnownSignatures = { "UnityFS", "UnityWeb", "UnityRaw" };
+
     /// <summary>判定一个 PE 需要读到多少字节（PE 头 + 可选头 + 数据目录）。</summary>
     private const int ProbeHeadBytes = 4096;
 
@@ -27,17 +37,13 @@ public static class UnityBundleReader
     /// <summary>解压后数据流的体积上限，超过就认为不是我们要处理的包。</summary>
     private const long MaxDataStreamSize = 1L << 30; // 1 GB
 
-    /// <summary>文件头是不是 UnityFS。</summary>
+    /// <summary>文件头是不是一个认得出的 Unity 资源包。</summary>
     public static bool IsBundle(string path)
     {
         try
         {
             using var fs = File.OpenRead(path);
-            Span<byte> sig = stackalloc byte[8];
-            return fs.Read(sig) == 8
-                && sig[0] == (byte)'U' && sig[1] == (byte)'n' && sig[2] == (byte)'i'
-                && sig[3] == (byte)'t' && sig[4] == (byte)'y' && sig[5] == (byte)'F'
-                && sig[6] == (byte)'S' && sig[7] == 0;
+            return ReadSignature(fs) != null;
         }
         catch
         {
@@ -45,8 +51,15 @@ public static class UnityBundleReader
         }
     }
 
+    /// <summary>读文件头签名；不是资源包时返回 null。</summary>
+    private static string? ReadSignature(Stream s)
+    {
+        string sig = ReadCString(s);
+        return Array.IndexOf(KnownSignatures, sig) >= 0 ? sig : null;
+    }
+
     /// <summary>
-    /// 从 UnityFS 包中提取第一个内嵌的托管程序集。
+    /// 从资源包中提取第一个内嵌的托管程序集。
     /// 失败时抛 <see cref="InvalidDataException"/>，消息可直接展示给用户。
     /// </summary>
     /// <returns>一段描述提取结果的信息。</returns>
@@ -59,28 +72,44 @@ public static class UnityBundleReader
 
         using var fs = File.OpenRead(bundlePath);
 
-        // ---------- 1. 解析 UnityFS 头 ----------
+        // ---------- 1. 解析容器头 ----------
         string signature = ReadCString(fs);
-        if (signature != "UnityFS")
-            throw new InvalidDataException("这不是 UnityFS 资源包。");
+        if (Array.IndexOf(KnownSignatures, signature) < 0)
+            throw new InvalidDataException("这不是 Unity 资源包。");
 
         uint version = ReadU32Be(fs);
-        string unityVersion = ReadCString(fs);
-        string unityRevision = ReadCString(fs);
-        long totalSize = ReadI64Be(fs);
-        uint compressedBlocksInfoSize = ReadU32Be(fs);
-        uint uncompressedBlocksInfoSize = ReadU32Be(fs);
-        uint flags = ReadU32Be(fs);
-        long headerEnd = fs.Position;
+
+        // UnityWeb / UnityRaw 从第 6 版起，内部结构与 UnityFS 完全一致
+        bool useFsLayout = signature == "UnityFS" || (signature != "UnityFS" && version >= 6);
+
+        string unityVersion = "";
+        long headerEnd;
+        uint compressedBlocksInfoSize;
+        uint uncompressedBlocksInfoSize;
+        uint flags;
+
+        if (useFsLayout)
+        {
+            unityVersion = ReadCString(fs);
+            string unityRevision = ReadCString(fs);
+            long totalSize = ReadI64Be(fs);
+            compressedBlocksInfoSize = ReadU32Be(fs);
+            uncompressedBlocksInfoSize = ReadU32Be(fs);
+            flags = ReadU32Be(fs);
+            headerEnd = fs.Position;
+        }
+        else
+        {
+            // 老格式：头里带哈希、crc 和分级下载信息，之后才是完整的压缩数据流
+            (compressedBlocksInfoSize, uncompressedBlocksInfoSize, flags, headerEnd) =
+                ReadLegacyHeader(fs, version);
+        }
 
         if (uncompressedBlocksInfoSize > 64u * 1024 * 1024)
             throw new InvalidDataException("资源包的索引信息异常庞大，无法解析。");
 
         int compressionType = (int)(flags & 0x3F);
         bool blocksInfoAtEnd = (flags & 0x80) != 0;
-
-        if (compressionType == 1)
-            throw new InvalidDataException("这个资源包用的是 LZMA 压缩，暂不支持。");
 
         // ---------- 2. 取出并解压索引信息 ----------
         // 头部之后可能有对齐填充（flags & 0x200 时要求 16 字节对齐），
@@ -126,17 +155,14 @@ public static class UnityBundleReader
             throw new InvalidDataException(
                 $"资源包解压后超过 {MaxDataStreamSize / (1024 * 1024)} MB，太大了。");
 
-        int nodeCount = ReadI32Be(blocksInfo, ref q);
-        var nodePaths = new List<string>(Math.Max(nodeCount, 0));
-        for (int i = 0; i < nodeCount; i++)
-        {
-            q += 8 + 8 + 4;                     // offset / size / flags
-            nodePaths.Add(ReadCString(blocksInfo, ref q));
-            while ((q & 3) != 0) q++;           // 路径字符串按 4 字节对齐
-        }
+        // 解析完索引后如果要求 16 字节对齐，数据块起点要相应后移
+        int dataAlignment = (flags & 0x200) != 0 ? 16 : 1;
+
+        var nodePaths = ReadNodePaths(blocksInfo, ref q, useFsLayout);
 
         // ---------- 4. 逐块解压，边解压边找内嵌程序集 ----------
         long dataStart = blocksInfoAtEnd ? headerEnd : blocksInfoPos + compressedBlocksInfoSize;
+        dataStart = AlignUp(dataStart, dataAlignment);
         long cursor = dataStart;
 
         long foundAt = -1;      // PE 在数据流中的绝对偏移
@@ -209,9 +235,86 @@ public static class UnityBundleReader
 
         long written = new FileInfo(outputPath).Length;
         string node = nodePaths.Count > 0 ? nodePaths[0] : "(无节点)";
-        return $"UnityFS v{version} · Unity {unityVersion}\n" +
+        string unity = string.IsNullOrEmpty(unityVersion) ? "" : $" · Unity {unityVersion}";
+        return $"{signature} v{version}{unity}\n" +
                $"节点 {node}\n" +
                $"程序集 {AssemblyStore.FormatSize(written)} @ 数据流偏移 {foundAt}";
+    }
+
+    /// <summary>解析索引里的节点表。老格式的字段顺序和宽度都不一样。</summary>
+    private static List<string> ReadNodePaths(byte[] blocksInfo, ref int q, bool fsLayout)
+    {
+        int nodeCount = ReadI32Be(blocksInfo, ref q);
+        if (nodeCount < 0) nodeCount = 0;
+
+        var paths = new List<string>(nodeCount);
+        for (int i = 0; i < nodeCount; i++)
+        {
+            if (fsLayout)
+            {
+                q += 8 + 8 + 4;                 // offset(i64) / size(i64) / flags(u32)
+                paths.Add(ReadCString(blocksInfo, ref q));
+                while ((q & 3) != 0) q++;       // 路径字符串按 4 字节对齐
+            }
+            else
+            {
+                paths.Add(ReadCString(blocksInfo, ref q));
+                q += 4 + 4;                     // offset(u32) / size(u32)
+            }
+        }
+
+        return paths;
+    }
+
+    /// <summary>
+    /// 读老格式（UnityWeb / UnityRaw）的头部。索引信息是整包压缩的，
+    /// 所以这里直接把"压缩块大小"当成从 headerEnd 到文件尾的长度。
+    /// </summary>
+    private static (uint Compressed, uint Uncompressed, uint Flags, long HeaderEnd)
+        ReadLegacyHeader(FileStream fs, uint version)
+    {
+        if (version >= 4)
+        {
+            // hash(16) + crc(4)
+            var skip = new byte[20];
+            ReadFull(fs, skip, 0, skip.Length);
+        }
+
+        _ = ReadU32Be(fs);   // minimumStreamedBytes
+        uint size = ReadU32Be(fs);
+        _ = ReadU32Be(fs);   // numberOfLevelsToDownloadBeforeStreaming
+
+        int levelCount = ReadI32Be(fs);
+        if (levelCount <= 0 || levelCount > 1 << 16)
+            throw new InvalidDataException("资源包的层级数量异常。");
+
+        uint lastUncompressed = 0;
+        for (int i = 0; i < levelCount; i++)
+        {
+            _ = ReadU32Be(fs);              // 每级的 compressedSize
+            lastUncompressed = ReadU32Be(fs);
+        }
+
+        if (version >= 2) _ = ReadU32Be(fs);   // completeFileSize
+        if (version >= 3) _ = ReadU32Be(fs);   // fileInfoHeaderSize
+
+        // 老格式没有块表，索引信息整段压缩在 size 之后
+        long headerEnd = size;
+        if (headerEnd <= 0 || headerEnd > fs.Length)
+            headerEnd = fs.Position;
+
+        fs.Position = headerEnd;
+        uint compressed = (uint)Math.Max(0, fs.Length - headerEnd);
+
+        // 老格式固定用 LZMA，flags 里的压缩类型位直接置成 LZMA
+        return (compressed, lastUncompressed, 1u, headerEnd);
+    }
+
+    private static long AlignUp(long value, int alignment)
+    {
+        if (alignment <= 1) return value;
+        long mask = alignment - 1;
+        return (value + mask) & ~mask;
     }
 
     // ------------------------------------------------------------ 块解压
@@ -250,7 +353,10 @@ public static class UnityBundleReader
         return null;
     }
 
-    /// <summary>按压缩类型解码；失败返回 null。0=不压缩 2=LZ4 3=LZ4HC。</summary>
+    /// <summary>
+    /// 按压缩类型解码；失败返回 null。
+    /// 0=不压缩 1=LZMA 2=LZ4 3=LZ4HC。
+    /// </summary>
     private static byte[]? TryDecompress(byte[] src, int srcLen, int dstLen, int type)
     {
         try
@@ -269,10 +375,27 @@ public static class UnityBundleReader
                 int n = LZ4Codec.Decode(src, 0, srcLen, dst, 0, dstLen);
                 return n == dstLen ? dst : null;
             }
+
+            if (type == 1)
+            {
+                if (srcLen <= 5 || dstLen <= 0) return null;
+
+                // Unity 的 LZMA 帧 = 5 字节属性 + 裸 LZMA 流
+                var props = new byte[5];
+                Buffer.BlockCopy(src, 0, props, 0, 5);
+
+                using var input = new MemoryStream(src, 5, srcLen - 5);
+                using var lz = new LzmaStream(props, input, srcLen - 5, dstLen);
+
+                var dst = new byte[dstLen];
+                int n = 0, r;
+                while (n < dst.Length && (r = lz.Read(dst, n, dst.Length - n)) > 0) n += r;
+                return n == dstLen ? dst : null;
+            }
         }
         catch
         {
-            // 候选位置不对时 LZ4 会抛异常，当作"这里不是块起点"即可
+            // 候选位置不对时解压器会抛异常，当作"这里不是块起点"即可
         }
 
         return null;
@@ -370,6 +493,13 @@ public static class UnityBundleReader
         Span<byte> b = stackalloc byte[8];
         s.ReadExactly(b);
         return BinaryPrimitives.ReadInt64BigEndian(b);
+    }
+
+    private static int ReadI32Be(Stream s)
+    {
+        Span<byte> b = stackalloc byte[4];
+        s.ReadExactly(b);
+        return BinaryPrimitives.ReadInt32BigEndian(b);
     }
 
     private static int ReadI32Be(byte[] b, ref int p)

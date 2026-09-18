@@ -44,8 +44,10 @@ public class MainActivity : AppCompatActivity
     {
         ("ICSharpCode.Decompiler", "9.1.0.7988", "反编译引擎，dnSpy / ILSpy 同款",
             "https://github.com/icsharpcode/ILSpy"),
-        ("K4os.Compression.LZ4", "1.3.8", "解包 UnityFS 资源包用的 LZ4 解压",
+        ("K4os.Compression.LZ4", "1.3.8", "解包资源包用的 LZ4 解压",
             "https://github.com/MiloszKrajewski/K4os.Compression.LZ4"),
+        ("SharpCompress", "0.39.0", "解包资源包用的 LZMA 解压",
+            "https://github.com/adamhathcock/sharpcompress"),
         ("Xamarin.Google.Android.Material", "1.14.0.6", "Material 3 界面组件",
             "https://github.com/xamarin/GooglePlayServicesComponents"),
     };
